@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chessmetrics"
+version = "0.1.0"
+description = "Broadcast explainability metrics for chess: outcome, difficulty and explanation layers."
+requires-python = ">=3.11"
+dependencies = ["chess==1.11.2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+chessmetrics = "chessmetrics.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["engine: tests that need a Stockfish binary"]

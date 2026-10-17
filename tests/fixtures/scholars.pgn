@@ -1,0 +1,19 @@
+[Event "Fixture blitz"]
+[Site "fixture/scholars"]
+[White "A"]
+[Black "B"]
+[Result "1-0"]
+[WhiteElo "1450"]
+[BlackElo "1420"]
+[TimeControl "180+2"]
+
+1. e4 { [%clk 0:03:00] } e5 { [%clk 0:03:00] } 2. Bc4 { [%clk 0:02:58] } Nc6 { [%clk 0:02:57] } 3. Qh5 { [%clk 0:02:55] } Nf6 { [%clk 0:02:50] } 4. Qxf7# { [%clk 0:02:54] } 1-0
+
+[Event "Fixture classical"]
+[Site "fixture/nolock"]
+[White "C"]
+[Black "D"]
+[Result "1/2-1/2"]
+[TimeControl "40/5400+30:1800+30"]
+
+1. d4 d5 2. c4 e6 1/2-1/2
