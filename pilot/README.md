@@ -34,6 +34,7 @@ end. They are **not** fit for air until the real human model is calibrated.
 ## Usage
 
 ```bash
+cd pilot
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/pytest                                      # engine tests need Stockfish (STOCKFISH=/path)
 
