@@ -14,38 +14,100 @@
 </head>
 <body>
 <!-- body:start -->
-<div class="stage-wrap"><div class="stage" id="stage"></div></div>
+<div class="app">
+  <div class="main">
+    <div class="top">
+      <div class="players">
+        <div class="pl" id="pl-w"><span class="sw w"></span><div class="who"><span class="name" id="name-w"></span><span class="meta" id="meta-w"></span></div><span class="clock" id="clk-w"></span></div>
+        <div class="mvbox"><span class="lbl" id="mv-lbl">Move</span><span class="mv" id="mv"></span></div>
+        <div class="pl r" id="pl-b"><span class="sw b"></span><div class="who"><span class="name" id="name-b"></span><span class="meta" id="meta-b"></span></div><span class="clock" id="clk-b"></span></div>
+      </div>
+      <div class="summary" id="summary" aria-live="polite"></div>
+    </div>
 
-<div class="controls" aria-label="Operator controls">
-  <div class="row">
-    <button id="first" type="button" aria-label="First position">⏮</button>
-    <button id="prev" type="button" aria-label="Previous move">◀</button>
-    <button id="play" type="button" class="primary">Play</button>
-    <button id="next" type="button" aria-label="Next move">▶</button>
-    <button id="last" type="button" aria-label="Last position">⏭</button>
-    <button id="next-callout" type="button">Next callout</button>
-    <span class="moveinfo" id="moveinfo"></span>
-    <span class="spacer"></span>
-    <label for="speed">Speed
-      <select id="speed">
-        <option value="4000">Slow</option>
-        <option value="2600" selected>Normal</option>
-        <option value="1200">Fast</option>
-      </select>
-    </label>
-    <button id="clean" type="button">Clean feed</button>
+    <div class="bars" aria-label="Win probability">
+      <div class="vbar engine" title="Engine win/draw/loss (Stockfish)"><div class="track"><div class="seg draw"></div><div class="seg white"></div><span class="val b"></span><span class="val w"></span></div><span class="tag" data-full="ENGINE" data-short="ENG"></span></div>
+      <div class="vbar human" title="Human win/draw/loss at these ratings (Maia-3)"><div class="track"><div class="seg draw"></div><div class="seg white"></div><span class="val b"></span><span class="val w"></span></div><span class="tag" data-full="HUMAN" data-short="HUM"></span></div>
+    </div>
+    <div class="board" id="board"></div>
+
+    <div class="controls">
+      <input class="timeline" id="timeline" type="range" min="0" value="0" aria-label="Move timeline">
+      <div class="row">
+        <button class="btn" id="first" type="button" aria-label="Start position">⏮</button>
+        <button class="btn" id="prev" type="button" aria-label="Previous move">◀</button>
+        <button class="btn primary" id="play" type="button">Play</button>
+        <button class="btn" id="next" type="button" aria-label="Next move">▶</button>
+        <button class="btn" id="last" type="button" aria-label="Final position">⏭</button>
+        <span class="spacer"></span>
+        <button class="btn" id="draw" type="button" aria-pressed="false">Draw arrows</button>
+        <span class="swatches" role="group" aria-label="Arrow colour">
+          <button class="swatch" type="button" data-color="#d9f84a" aria-label="Lime" aria-pressed="true" style="background:#d9f84a"></button>
+          <button class="swatch" type="button" data-color="#c24dff" aria-label="Purple" aria-pressed="false" style="background:#c24dff"></button>
+          <button class="swatch" type="button" data-color="#ff8a3d" aria-label="Orange" aria-pressed="false" style="background:#ff8a3d"></button>
+        </span>
+        <button class="btn" id="clear" type="button">Clear</button>
+      </div>
+      <p class="hint">Drag between squares to draw an arrow; click a square to circle it. Right-click drag works any time. Arrow keys step through the game.</p>
+    </div>
   </div>
-  <div class="scrub" id="scrub" role="slider" aria-label="Game timeline" aria-valuemin="0"></div>
-  <div class="row">
-    <label><input type="checkbox" id="layer-last" data-layer="lastMove">Last move</label>
-    <label><input type="checkbox" id="layer-best" data-layer="best">Engine best</label>
-    <label><input type="checkbox" id="layer-human" data-layer="human">Human favourite</label>
-    <label><input type="checkbox" id="layer-overload" data-layer="overload">Overloaded pieces</label>
-    <label><input type="checkbox" id="layer-control" data-layer="control">Square control</label>
-    <label><input type="checkbox" id="layer-network" data-layer="network">Defence network</label>
-    <label><input type="checkbox" id="auto-tab" checked>Panel follows callouts</label>
-  </div>
-  <p class="note">Operator view: the 16:9 frame above is the broadcast output; these controls are not. Replay of Rapport–Abdusattorov, Chess Olympiad 2026, from the chessmetrics pipeline (Stockfish 16 at depth 18, Maia-3 5M). Timeline ticks mark callouts: orange swing, lime difficulty, white overload, purple conversion. Arrow keys step, space plays. <b>Prototype:</b> the human model is not yet calibrated for elite play, the engine's win/draw/loss scale exaggerates some swings, and overload detection is untuned.</p>
+
+  <aside class="panel">
+    <div class="tabs" role="tablist" aria-label="Match analysis">
+      <button class="tab" role="tab" id="tab-video" data-tab="video" aria-controls="pane-video">Video</button>
+      <button class="tab" role="tab" id="tab-game" data-tab="game" aria-controls="pane-game">Game</button>
+      <button class="tab" role="tab" id="tab-decision" data-tab="decision" aria-controls="pane-decision">Decision</button>
+      <button class="tab" role="tab" id="tab-position" data-tab="position" aria-controls="pane-position">Position</button>
+      <button class="tab" role="tab" id="tab-moves" data-tab="moves" aria-controls="pane-moves">Moves</button>
+    </div>
+
+    <section class="pane" id="pane-video" role="tabpanel" aria-labelledby="tab-video" hidden>
+      <div class="h"><h3>Broadcast</h3><small id="video-src"></small></div>
+      <div id="video-slot"></div>
+    </section>
+
+    <section class="pane" id="pane-game" role="tabpanel" aria-labelledby="tab-game" hidden>
+      <div class="h"><h3>Win probability</h3><small>White · Draw · Black</small></div>
+      <div class="wp">
+        <div class="wprow engine"><span class="lbl">ENGINE</span><div class="hbar" id="hb-engine"><span class="w"></span><span class="d"></span><span class="b"></span></div></div>
+        <div class="wprow human"><span class="lbl">HUMAN</span><div class="hbar" id="hb-human"><span class="w"></span><span class="d"></span><span class="b"></span></div></div>
+      </div>
+      <div class="h"><h3>Expected points</h3><small>White's share · click to jump</small></div>
+      <div class="chart" id="chart"></div>
+      <div class="h"><h3>Key moments</h3><small>Click to jump to the position</small></div>
+      <div class="moments" id="moments"></div>
+    </section>
+
+    <section class="pane" id="pane-decision" role="tabpanel" aria-labelledby="tab-decision" hidden>
+      <div class="h"><h3 id="dec-title">Next decision</h3><small id="dec-last"></small></div>
+      <div class="stats">
+        <div class="card stat"><span class="k">Find rate</span><span class="v" id="dec-find"></span><div class="meter find"><i id="dec-find-m"></i></div><span class="sub">Chance a player at this level finds a move that holds</span></div>
+        <div class="card stat"><span class="k">Blunder risk</span><span class="v" id="dec-risk"></span><div class="meter risk"><i id="dec-risk-m"></i></div><span class="sub">Chance the next move loses more than 0.15 expected points</span></div>
+      </div>
+      <div class="h"><h3>Likely human moves</h3><small>Maia-3 at these ratings</small></div>
+      <div class="cands" id="cands"></div>
+      <div class="card kvline" id="engline"></div>
+      <p class="foot" id="dec-foot"></p>
+    </section>
+
+    <section class="pane" id="pane-position" role="tabpanel" aria-labelledby="tab-position" hidden>
+      <div class="h"><h3>Balance</h3><small>White · Black</small></div>
+      <div class="duel" id="duel"></div>
+      <div class="h"><h3>Overloaded pieces</h3><small>Sole defender of two or more duties</small></div>
+      <div class="loads" id="loads"></div>
+      <div class="h"><h3>Show on board</h3><small>Off by default</small></div>
+      <div class="toggles">
+        <label class="toggle" for="layer-overload"><span>Overloaded pieces<small>Ring the piece and link it to what it guards</small></span><input type="checkbox" id="layer-overload" data-layer="overload"></label>
+        <label class="toggle" for="layer-control"><span>Square control<small>Light squares are White's, dark are Black's</small></span><input type="checkbox" id="layer-control" data-layer="control"></label>
+        <label class="toggle" for="layer-network"><span>Defence network<small>Lines from each piece to the pieces it defends</small></span><input type="checkbox" id="layer-network" data-layer="network"></label>
+      </div>
+    </section>
+
+    <section class="pane" id="pane-moves" role="tabpanel" aria-labelledby="tab-moves" hidden>
+      <div class="h"><h3>Moves</h3><small>Expected points each move cost</small></div>
+      <div class="movelist" id="movelist"></div>
+    </section>
+  </aside>
 </div>
 
 <script src="feed.js"></script>

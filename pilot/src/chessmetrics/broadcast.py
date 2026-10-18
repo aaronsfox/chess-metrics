@@ -95,6 +95,7 @@ def game_feed(
     scan_limit: SearchLimit = SearchLimit(depth=10),
     min_prob: float = 0.01,
     skip_callout_plies: int = 16,
+    video: str | None = None,
 ) -> dict:
     h = game.headers
     tc = TimeControl.parse(h.get("TimeControl"))
@@ -232,5 +233,6 @@ def game_feed(
         "swings": [{"ply": r.ply + 1, "label": frames[r.ply + 1]["lastMove"]["label"], "epa": round(r.epa, 3),
                     "mover": _side(r.mover)} for r in epa.swing_moments(results, k=3)],
         "final": _wdl(final),
+        "video": {"url": video} if video else None,
         "frames": frames,
     }

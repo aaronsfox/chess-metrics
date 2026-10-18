@@ -52,6 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--threads", type=int, default=min(4, os.cpu_count() or 1))
     p.add_argument("--cache", default="analysis_cache.sqlite")
     p.add_argument("--human-model", default="maia3-5m")
+    p.add_argument("--video", help="URL of the match broadcast video (e.g. a YouTube link)")
     p.add_argument("-o", "--out", required=True)
 
     args = parser.parse_args(argv)
@@ -88,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
             game = chess.pgn.read_game(f)
         with EngineAnalyzer(args.engine, SearchLimit(depth=args.depth), AnalysisCache(args.cache),
                             threads=args.threads, hash_mb=256) as analyzer:
-            feed = game_feed(game, analyzer, Maia3Model(args.human_model))
+            feed = game_feed(game, analyzer, Maia3Model(args.human_model), video=args.video)
         with open(args.out, "w") as f:
             json.dump(feed, f, separators=(",", ":"))
         print(f"{len(feed['frames'])} frames -> {args.out}", file=sys.stderr)

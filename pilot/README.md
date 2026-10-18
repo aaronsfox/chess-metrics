@@ -147,28 +147,37 @@ engine-only HWP baseline). The default stays `engine` until that decision is mad
   in-process inside a network-facing broadcast service likely brings AGPL
   obligations to the combined work; check before production.
 
-## Broadcast overlay prototype (`broadcast/`)
+## Match viewer prototype (`broadcast/`)
 
-HTML/SVG broadcast graphics driven by a per-position JSON feed: score bug with
-clocks, engine and human (Maia-3) outcome bars, an in-house SVG board with
-metric layers (last move, engine best vs human favourite arrows, overloaded
-pieces and their duties, square control, defence network), an analysis panel
-(Game / Decision / Board) and event callouts (swing, difficulty, overload,
-conversion) scheduled one at a time with per-kind cooldowns.
+HTML/SVG viewer driven by a per-position JSON feed. The board is always
+visible, with the key summary around it: players, clocks and last move above;
+the current decision (side to move, find rate, blunder risk, any flagged
+moment) just below that; engine and human (Maia-3) win-probability bars to the
+left. Everything else sits in tabs on the right: **Video** (embedded broadcast
+when the feed or the viewer supplies a link), **Game** (win probability,
+expected-points chart, key moments), **Decision** (find rate, blunder risk,
+likely human moves), **Position** (space, king danger, overloaded pieces, and
+opt-in board overlays) and **Moves** (move list with EPA).
+
+Nothing is drawn on the board automatically except the last move. Viewers
+draw their own arrows and circles: switch on "Draw arrows" and drag between
+squares (or click to circle), or right-click drag at any time. Marks belong
+to the position they were drawn on.
 
 ```bash
-chessmetrics feed tests/fixtures/broadcast/olympiad2026_open_2700.pgn --game 2 -o broadcast/feed.json
+chessmetrics feed tests/fixtures/broadcast/olympiad2026_open_2700.pgn --game 2 \
+    [--video https://www.youtube.com/watch?v=...] -o broadcast/feed.json
 python -c "import pathlib as p; p.Path('broadcast/feed.js').write_text('window.FEED = ' + p.Path('broadcast/feed.json').read_text() + ';\n')"
-# open broadcast/index.html; in OBS/vMix add it as a browser source at 1920x1080 and use "Clean feed"
-# (or append #clean) to hide the operator controls and the background
+# open broadcast/index.html
 ```
 
-The feed (`chessmetrics.broadcast.game_feed`) is the data contract between the
-metrics and the graphics; a live service would push the same frames over a
-WebSocket and call `ChessOverlay.showFrame`. Known prototype limits: Maia's
-outcome view zigzags with the side to move (displayed as a two-ply average),
-swing callouts inherit the Stockfish WDL-scale issue above, and overload
-detection is untuned.
+The feed (`chessmetrics.broadcast.game_feed`) is the data contract; a live
+service would push the same frames and call `ChessViewer.showFrame`.
+`tests/test_viewer_ui.py` drives the page in Chromium (needs `pip install
+playwright==1.56.0`). Known prototype limits: Maia's outcome view zigzags with
+the side to move (shown as a two-ply average), swing moments inherit the
+Stockfish WDL-scale issue above, overload detection is untuned, and no video
+link is set for the Olympiad game.
 
 ## Conventions
 
