@@ -52,6 +52,8 @@ class EngineSoftmaxModel:
     Placeholder only: it cannot capture *which* wrong moves humans like.
     """
 
+    needs_analysis = True  # probabilities are computed from the engine analysis
+
     temp_at_1500: float = 0.08
     temp_at_2800: float = 0.015
     low_clock_seconds: float = 30.0  # below this, temperature rises

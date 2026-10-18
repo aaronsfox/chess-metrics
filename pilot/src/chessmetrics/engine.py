@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -46,6 +46,7 @@ class MoveEval:
     cp: int | None  # None when the score is a forced mate
     mate: int | None  # moves to mate; positive = mover mates
     wdl: WDL  # White's point of view, like every WDL in the package
+    deep: bool = True  # False for moves only covered by a tiered analysis's shallow scan
 
     def expected(self, mover: chess.Color, points: PointsFunction = STANDARD) -> float:
         return points.expected(self.wdl, mover)
@@ -56,11 +57,12 @@ class MoveEval:
             "cp": self.cp,
             "mate": self.mate,
             "wdl": [self.wdl.white, self.wdl.draw, self.wdl.black],
+            "deep": self.deep,
         }
 
     @classmethod
     def from_json(cls, d: dict) -> MoveEval:
-        return cls(chess.Move.from_uci(d["move"]), d["cp"], d["mate"], WDL(*d["wdl"]))
+        return cls(chess.Move.from_uci(d["move"]), d["cp"], d["mate"], WDL(*d["wdl"]), d.get("deep", True))
 
 
 @dataclass(frozen=True)
@@ -68,7 +70,8 @@ class PositionAnalysis:
     fen: str
     engine_id: str
     limit: SearchLimit
-    moves: tuple[MoveEval, ...]  # best first
+    moves: tuple[MoveEval, ...]  # deep moves best first, then shallow-only moves best first
+    scan_limit: SearchLimit | None = None  # set for tiered analyses
 
     @property
     def mover(self) -> chess.Color:
@@ -76,6 +79,7 @@ class PositionAnalysis:
 
     @property
     def best(self) -> MoveEval:
+        """Best deeply searched move. Shallow-only moves never count as best."""
         return self.moves[0]
 
     def by_move(self) -> dict[chess.Move, MoveEval]:
@@ -159,27 +163,54 @@ class EngineAnalyzer:
     def close(self) -> None:
         self._engine.quit()
 
-    def analyse(self, board: chess.Board, candidates: Iterable[chess.Move] | None = None) -> PositionAnalysis:
+    def analyse(
+        self,
+        board: chess.Board,
+        candidates: Iterable[chess.Move] | None = None,
+        limit: SearchLimit | None = None,
+    ) -> PositionAnalysis:
         """Evaluate `candidates` (default: every legal move), best first."""
         if board.is_game_over():
             raise ValueError("cannot analyse moves in a finished position")
+        limit = limit or self.limit
         cand = list(board.legal_moves) if candidates is None else list(candidates)
         pos, ckey = position_key(board), _candidates_key(board, cand)
-        cached = self.cache.get(pos, self.engine_id, self.limit.key(), ckey)
+        cached = self.cache.get(pos, self.engine_id, limit.key(), ckey)
         if cached is not None:
-            return PositionAnalysis(board.fen(), self.engine_id, self.limit, tuple(cached))
+            return PositionAnalysis(board.fen(), self.engine_id, limit, tuple(cached))
 
         infos = self._engine.analyse(
             board,
-            self.limit.to_engine(),
+            limit.to_engine(),
             multipv=len(cand),
             root_moves=cand,
             info=chess.engine.INFO_SCORE | chess.engine.INFO_PV,
         )
         moves = [self._to_move_eval(board, info) for info in infos if info.get("pv")]
         moves.sort(key=lambda m: -m.expected(board.turn))
-        self.cache.put(pos, self.engine_id, self.limit.key(), ckey, moves)
-        return PositionAnalysis(board.fen(), self.engine_id, self.limit, tuple(moves))
+        self.cache.put(pos, self.engine_id, limit.key(), ckey, moves)
+        return PositionAnalysis(board.fen(), self.engine_id, limit, tuple(moves))
+
+    def analyse_tiered(
+        self,
+        board: chess.Board,
+        candidates: Iterable[chess.Move],
+        scan_limit: SearchLimit = SearchLimit(depth=10),
+        scan_top_n: int = 5,
+    ) -> PositionAnalysis:
+        """Deep search on the plausible moves, shallow scan for the rest.
+
+        Every legal move is scanned at `scan_limit`; `candidates` plus the scan's
+        `scan_top_n` best moves are then searched at the analyzer's limit. The
+        shallow-only moves are kept so that low-probability moves can still be
+        classified as good or bad, but they never count as the best move.
+        """
+        scan = self.analyse(board, None, scan_limit)
+        deep_set = {m.move for m in scan.moves[:scan_top_n]} | set(candidates)
+        deep = self.analyse(board, sorted(deep_set, key=chess.Move.uci))
+        searched = {m.move for m in deep.moves}
+        shallow = tuple(replace(m, deep=False) for m in scan.moves if m.move not in searched)
+        return PositionAnalysis(board.fen(), self.engine_id, self.limit, deep.moves + shallow, scan_limit)
 
     def evaluate(self, board: chess.Board) -> WDL:
         """WDL of a position itself (single PV). Terminal positions are scored exactly."""

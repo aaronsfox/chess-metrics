@@ -69,3 +69,33 @@ def test_game_report(analyzer):
     # EPA ledger telescopes to the final result for each player
     white = report["summary"]["white"]
     assert white["net"] == pytest.approx(1.0 - moves[0]["e_before"], abs=1e-9)
+
+
+def test_tiered_analysis_deep_on_candidates_only(analyzer):
+    board = chess.Board()
+    cand = {chess.Move.from_uci("a2a3"), chess.Move.from_uci("e2e4")}
+    a = analyzer.analyse_tiered(board, cand, scan_limit=SearchLimit(depth=6), scan_top_n=2)
+    deep = {m.move for m in a.moves if m.deep}
+    assert cand <= deep and len(deep) <= 4  # candidates + scan top 2
+    assert len(a.moves) == 20  # every legal move is still classified
+    assert a.best.deep and a.scan_limit == SearchLimit(depth=6)
+    assert all(m.deep for m in a.moves[:len(deep)])  # deep moves first
+
+
+class _StubHuman:
+    def move_probs(self, board, ctx, analysis=None):
+        moves = sorted(board.legal_moves, key=chess.Move.uci)
+        return {m: (0.5 if i == 0 else 0.5 / (len(moves) - 1)) for i, m in enumerate(moves)}
+
+
+def test_game_report_tiered_telescopes(analyzer):
+    with open(FIXTURES / "scholars.pgn") as f:
+        game = chess.pgn.read_game(f)
+    report = analyse_game(game, analyzer, _StubHuman(), scan_limit=SearchLimit(depth=6))
+    assert report["scan_limit"] == "d6-nNone"
+    nf6 = report["moves"][5]
+    assert nf6["epa"] < -0.3
+    for color, final in (("white", 1.0), ("black", 0.0)):
+        s = report["summary"][color]
+        start = report["moves"][0]["e_before"] if color == "white" else 1 - report["moves"][0]["e_before"]
+        assert s["net"] == pytest.approx(final - start, abs=0.02)  # draw value 0.5: E_black ~ 1 - E_white

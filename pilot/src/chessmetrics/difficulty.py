@@ -22,10 +22,14 @@ BETA = 0.15  # blunder threshold, expected points
 
 
 def losses(analysis: PositionAnalysis, points: PointsFunction = STANDARD) -> dict[chess.Move, float]:
-    """E_best - E(m) for every analysed move, from the mover's point of view."""
+    """E_best - E(m) for every analysed move, from the mover's point of view.
+
+    E_best is the best *deeply searched* move. In a tiered analysis a
+    shallow-only move can look better than it; its loss is clamped at 0.
+    """
     es = analysis.expected_by_move(points)
-    best = max(es.values())
-    return {m: best - e for m, e in es.items()}
+    best = analysis.best.expected(analysis.mover, points)
+    return {m: max(0.0, best - e) for m, e in es.items()}
 
 
 def good_enough(analysis: PositionAnalysis, tau: float = TAU, points: PointsFunction = STANDARD) -> set[chess.Move]:

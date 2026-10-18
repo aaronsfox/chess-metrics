@@ -33,6 +33,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--human-model", default="maia3-5m",
                    help='"softmax" (placeholder baseline) or a Maia-3 alias such as maia3-5m')
     p.add_argument("--maia-checkpoint", help="local Maia-3 checkpoint instead of downloading")
+    p.add_argument("--scan-depth", type=int, default=10,
+                   help="depth for moves outside the human model's candidates (tiered analysis)")
+    p.add_argument("--min-prob", type=float, default=0.01, help="human probability that makes a move a candidate")
+    p.add_argument("--full", action="store_true", help="search every legal move at --depth (slow)")
+    p.add_argument("--threads", type=int, default=1)
 
     args = parser.parse_args(argv)
     if args.cmd == "records":
@@ -50,9 +55,12 @@ def main(argv: list[str] | None = None) -> int:
 
             model = Maia3Model(args.human_model, checkpoint_path=args.maia_checkpoint)
         cache = AnalysisCache(args.cache)
-        with EngineAnalyzer(args.engine, SearchLimit(depth=args.depth), cache) as analyzer, open(args.pgn) as f:
+        scan = None if args.full else SearchLimit(depth=args.scan_depth)
+        with EngineAnalyzer(args.engine, SearchLimit(depth=args.depth), cache, threads=args.threads,
+                            hash_mb=256) as analyzer, open(args.pgn) as f:
             for game in read_games(f):
-                report = analyse_game(game, analyzer, model, skip_plies=args.skip_plies)
+                report = analyse_game(game, analyzer, model, skip_plies=args.skip_plies,
+                                      scan_limit=scan, min_prob=args.min_prob)
                 report["human_model"] = getattr(model, "model_id", args.human_model)
                 print(json.dumps(report))
     return 0

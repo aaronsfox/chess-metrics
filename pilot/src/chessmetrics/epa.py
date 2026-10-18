@@ -2,8 +2,18 @@
 
 Works on any sequence of position WDLs: engine WDL today, human-aware win
 probability (HWP) once that model exists. EPA for a move is the change in the
-mover's expected points across it. By construction, a player's own EPA plus the
-effect of the opponent's moves telescopes to E(final) - E(start).
+mover's expected points across it.
+
+Two ways to build the plies:
+
+- `plies_from_wdls`: one WDL per position; each move's "after" is the next
+  position's "before". Natural for a model like HWP that scores positions.
+- `plies_from_searches`: each move is scored within one engine search, played
+  move vs best move. Separate searches of consecutive positions disagree
+  (horizon effects), and chaining them books that disagreement as EPA on moves
+  that held. Here it is kept apart as `drift` instead.
+
+Either way a player's ledger telescopes: net = E(final) - E(start).
 """
 
 from __future__ import annotations
@@ -60,6 +70,12 @@ def compute(plies: Sequence[PlyInput], points: PointsFunction = STANDARD) -> lis
     return out
 
 
+def plies_from_searches(movers: Sequence[chess.Color], sans: Sequence[str], best: Sequence[WDL],
+                        played: Sequence[WDL]) -> list[PlyInput]:
+    """Plies scored within each position's own search: before = best move, after = played move."""
+    return [PlyInput(m, s, b, p, wdl_best_after=b) for m, s, b, p in zip(movers, sans, best, played)]
+
+
 def plies_from_wdls(movers: Sequence[chess.Color], sans: Sequence[str], wdls: Sequence[WDL],
                     best_after: Sequence[WDL | None] | None = None) -> list[PlyInput]:
     """Build PlyInputs from n moves and n+1 position WDLs (start, after move 1, ...)."""
@@ -78,15 +94,21 @@ class Ledger:
     gifted: float  # points opponent moves handed over (>= 0)
     taken: float  # points opponent moves took away (<= 0)
     missed: float  # gains left on the table after opponent errors (>= 0)
+    drift: float = 0.0  # re-evaluation between consecutive searches (0 for chained WDLs)
 
     @property
     def net(self) -> float:
         """Equals E(final) - E(start) for this player."""
-        return self.seized + self.conceded + self.gifted + self.taken
+        return self.seized + self.conceded + self.gifted + self.taken + self.drift
 
 
-def ledger(plies: Sequence[PlyInput], color: chess.Color, points: PointsFunction = STANDARD) -> Ledger:
-    seized = conceded = gifted = taken = missed = 0.0
+def ledger(plies: Sequence[PlyInput], color: chess.Color, points: PointsFunction = STANDARD,
+           final: WDL | None = None) -> Ledger:
+    """`final` is the WDL after the last move; needed for drift when plies come from searches."""
+    seized = conceded = gifted = taken = missed = drift = 0.0
+    nexts = [q.wdl_before for q in plies[1:]] + [final if final is not None else plies[-1].wdl_after]
+    for p, nxt in zip(plies, nexts):
+        drift += points.expected(nxt, color) - points.expected(p.wdl_after, color)
     for p, r in zip(plies, compute(plies, points)):
         if p.mover == color:
             seized += max(r.epa, 0.0)
@@ -96,7 +118,7 @@ def ledger(plies: Sequence[PlyInput], color: chess.Color, points: PointsFunction
             delta = points.expected(p.wdl_after, color) - points.expected(p.wdl_before, color)
             gifted += max(delta, 0.0)
             taken += min(delta, 0.0)
-    return Ledger(color, seized, conceded, gifted, taken, missed)
+    return Ledger(color, seized, conceded, gifted, taken, missed, drift)
 
 
 def swing_moments(results: Sequence[PlyEPA], k: int = 3) -> list[PlyEPA]:

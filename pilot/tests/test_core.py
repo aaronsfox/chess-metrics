@@ -118,6 +118,23 @@ def test_epa_telescopes_and_ledger():
     assert [s.san for s in epa.swing_moments(res, k=2)] == ["b", "d"]
 
 
+def test_search_plies_keep_drift_out_of_epa():
+    W, B = chess.WHITE, chess.BLACK
+    # each search: (best, played). White's move holds; the next search re-evaluates.
+    best = [WDL(0.3, 0.5, 0.2), WDL(0.5, 0.4, 0.1)]
+    played = [WDL(0.3, 0.5, 0.2), WDL(0.6, 0.4, 0.0)]  # Black's move loses 0.1
+    final = WDL(0.7, 0.3, 0.0)
+    plies = epa.plies_from_searches([W, B], ["hold", "err"], best, played)
+    res = epa.compute(plies)
+    assert res[0].epa == pytest.approx(0.0)  # a move that held concedes nothing
+    assert res[1].epa == pytest.approx(-0.1)
+    for color in (W, B):
+        led = epa.ledger(plies, color, final=final)
+        pf = PointsFunction()
+        assert led.net == pytest.approx(pf.expected(final, color) - pf.expected(best[0], color))
+    assert epa.ledger(plies, W, final=final).drift == pytest.approx((0.7 - 0.55) + (0.85 - 0.8))
+
+
 def test_missed_points_after_gift():
     W, B = chess.WHITE, chess.BLACK
     # Black's move hands White 0.3; White's reply only keeps 0.1 of it although best kept all
