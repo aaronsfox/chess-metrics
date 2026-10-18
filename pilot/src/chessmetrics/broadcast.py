@@ -159,14 +159,14 @@ def game_feed(
 
     # Maia's value head is scored from the side to move and its bias flips with
     # the turn, so raw values zigzag move to move. Display a two-ply average.
-    prev_h = None
+    prev_wdl = None
     for frame in frames:
-        h = frame.get("human")
-        if h is None:
+        human = frame.get("human")
+        if human is None:
             continue
-        cur = h["wdl"]
-        h["wdlSmooth"] = cur if prev_h is None else [round((a + b) / 2, 4) for a, b in zip(prev_h, cur)]
-        prev_h = cur
+        cur = human["wdl"]
+        human["wdlSmooth"] = cur if prev_wdl is None else [round((a + b) / 2, 4) for a, b in zip(prev_wdl, cur)]
+        prev_wdl = cur
 
     final = analyzer.evaluate(boards[-1])
     plies = epa.plies_from_searches(movers, sans, best_wdls, played_wdls)

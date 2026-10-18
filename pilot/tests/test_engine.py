@@ -124,6 +124,7 @@ def test_broadcast_feed_contract(analyzer):
         game = chess.pgn.read_game(f)
     feed = game_feed(game, analyzer, Maia3Model(random_init=True), scan_limit=SearchLimit(depth=6))
     json.dumps(feed)  # JSON-ready
+    assert feed["game"]["white"] == "A" and feed["game"]["result"] == "1-0"
     frames = feed["frames"]
     assert len(frames) == 8 and frames[0]["ply"] == 0 and "lastMove" not in frames[0]
     assert frames[-1]["lastMove"]["san"] == "Qxf7#" and "decision" not in frames[-1]
