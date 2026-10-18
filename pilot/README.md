@@ -43,6 +43,34 @@ chessmetrics structure "<FEN>"                         # structural snapshot as 
 chessmetrics analyse games.pgn --depth 12              # engine + difficulty + EPA report, one JSON line per game
 ```
 
+## Test data
+
+`tests/fixtures/broadcast/olympiad2026_open_2700.pgn`: 25 classical games from
+the 46th Chess Olympiad (Samarkand 2026, Open) where both players are rated
+2700+, with relay clocks (`%clk`) and Lichess evals (`%eval`). Re-fetch or pull
+other events with:
+
+```bash
+python scripts/fetch_broadcast.py --tour n1pPI5Q0 --min-elo 2700 \
+    --time-control "40/5400+30:1800+30" -o tests/fixtures/broadcast/olympiad2026_open_2700.pgn
+```
+
+Broadcast PGNs have no `TimeControl` header (hence `--time-control`), their
+`Site` is the venue rather than a game URL, relay clocks are noisy on move 1
+(flagged as `clock_anomaly`), and stage bonuses such as +30 min after move 40
+often appear a move or two late (detected from the clock data).
+
+## Early findings on elite games
+
+- **EPA is noisy at depth 12.** In Rapport–Abdusattorov (0-1) the swing moments
+  look right (17.g4 is the biggest, −0.32), but per-move search inconsistency
+  shows up as spurious EPA on moves that hold, e.g. the winner "concedes" 0.81
+  points across the game while being "gifted" 1.28. Needs deeper or node-based
+  search, or smoothing, before EPA is shown per move.
+- **The placeholder human model is far too sharp for 2700s.** P(blunder) is ~0
+  and find rates are near 1 almost everywhere, so expected accuracy ≈ 0.94–0.99.
+  This is expected of the softmax stand-in and is the main reason to bring in Maia-2.
+
 ## Conventions
 
 - Every `WDL` is from White's point of view; `MoveEval.cp` / `.mate` are from the mover's.

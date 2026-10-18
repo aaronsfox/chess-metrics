@@ -32,27 +32,27 @@ def test_points_functions():
 
 # --- pgn --------------------------------------------------------------------
 
-@pytest.mark.parametrize("header, base, inc, cat", [
-    ("180+2", 180, 2, "blitz"),
-    ("600", 600, 0, "rapid"),
-    ("40/5400+30:1800+30", 5400, 30, "classical"),
-    ("40/7200:3600", 7200, 0, "classical"),
-    ("-", None, 0, "unknown"),
+@pytest.mark.parametrize("header, base, inc, cat, bonuses", [
+    ("180+2", 180, 2, "blitz", ()),
+    ("600", 600, 0, "rapid", ()),
+    ("40/5400+30:1800+30", 5400, 30, "classical", ((40, 1800),)),
+    ("40/7200:20/3600:900", 7200, 0, "classical", ((40, 3600), (60, 900))),
+    ("-", None, 0, "unknown", ()),
 ])
-def test_time_control(header, base, inc, cat):
+def test_time_control(header, base, inc, cat, bonuses):
     tc = TimeControl.parse(header)
-    assert (tc.base, tc.increment, tc.category) == (base, inc, cat)
+    assert (tc.base, tc.increment, tc.category, tc.bonuses) == (base, inc, cat, bonuses)
 
 
 def test_records_clocks():
     recs = list(pgn_to_records(FIXTURES / "scholars.pgn"))
-    game = [r for r in recs if r.game_id == "fixture/scholars"]
+    game = [r for r in recs if r.game_id == "scholars#0"]
     assert [r.san for r in game] == ["e4", "e5", "Bc4", "Nc6", "Qh5", "Nf6", "Qxf7#"]
     bc4 = game[2]
     assert (bc4.clock_before, bc4.clock_after, bc4.time_spent) == (180, 178, 4)
     nf6 = game[5]
     assert nf6.opp_clock == 175 and nf6.time_spent == 9
-    untimed = [r for r in recs if r.game_id == "fixture/nolock"]
+    untimed = [r for r in recs if r.game_id == "scholars#1"]
     assert untimed[0].clock_before == 5400 and untimed[0].time_spent is None
 
 
@@ -134,3 +134,13 @@ def test_armageddon_epa_differs_from_standard():
     assert epa.compute(plies)[0].epa == pytest.approx(0.1)
     # converting Black wins into draws gains White nothing in Armageddon
     assert epa.compute(plies, PointsFunction.armageddon())[0].epa == pytest.approx(0.0)
+
+
+def test_broadcast_fixture_clocks():
+    """Real elite OTB games (Olympiad 2026, both players 2700+, 90/40+30+30s)."""
+    recs = list(pgn_to_records(FIXTURES / "broadcast" / "olympiad2026_open_2700.pgn"))
+    assert len({r.game_id for r in recs}) == 25
+    # relay noise is confined to the first move; the move-40 bonus is absorbed
+    assert {r.ply // 2 + 1 for r in recs if r.clock_anomaly} <= {1}
+    assert all(r.time_spent is not None for r in recs if not r.clock_anomaly)
+    assert all(r.time_category == "classical" for r in recs)
