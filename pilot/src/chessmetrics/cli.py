@@ -30,6 +30,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--depth", type=int, default=12)
     p.add_argument("--cache", default="analysis_cache.sqlite")
     p.add_argument("--skip-plies", type=int, default=0)
+    p.add_argument("--human-model", default="maia3-5m",
+                   help='"softmax" (placeholder baseline) or a Maia-3 alias such as maia3-5m')
+    p.add_argument("--maia-checkpoint", help="local Maia-3 checkpoint instead of downloading")
 
     args = parser.parse_args(argv)
     if args.cmd == "records":
@@ -40,10 +43,18 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "analyse":
         from .report import analyse_game
 
+        if args.human_model == "softmax":
+            model = EngineSoftmaxModel()
+        else:
+            from .maia import Maia3Model
+
+            model = Maia3Model(args.human_model, checkpoint_path=args.maia_checkpoint)
         cache = AnalysisCache(args.cache)
         with EngineAnalyzer(args.engine, SearchLimit(depth=args.depth), cache) as analyzer, open(args.pgn) as f:
             for game in read_games(f):
-                print(json.dumps(analyse_game(game, analyzer, EngineSoftmaxModel(), skip_plies=args.skip_plies)))
+                report = analyse_game(game, analyzer, model, skip_plies=args.skip_plies)
+                report["human_model"] = getattr(model, "model_id", args.human_model)
+                print(json.dumps(report))
     return 0
 
 

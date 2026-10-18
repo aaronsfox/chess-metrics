@@ -11,6 +11,11 @@ dependencies = ["chess==1.11.2"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+# Maia-3 human move model. AGPL-3.0: kept optional and unvendored; see README.
+maia = [
+    "torch>=2.2",
+    "maia3 @ git+https://github.com/CSSLab/maia3@1e13597",
+]
 
 [project.scripts]
 chessmetrics = "chessmetrics.cli:main"
@@ -20,4 +25,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["engine: tests that need a Stockfish binary"]
+markers = [
+    "engine: tests that need a Stockfish binary",
+    "maia: tests that need torch + maia3",
+]
