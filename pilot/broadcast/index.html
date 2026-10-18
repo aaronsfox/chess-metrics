@@ -42,13 +42,24 @@
         <span class="spacer"></span>
         <button class="btn" id="draw" type="button" aria-pressed="false">Draw arrows</button>
         <span class="swatches" role="group" aria-label="Arrow colour">
-          <button class="swatch" type="button" data-color="#d9f84a" aria-label="Lime" aria-pressed="true" style="background:#d9f84a"></button>
-          <button class="swatch" type="button" data-color="#c24dff" aria-label="Purple" aria-pressed="false" style="background:#c24dff"></button>
-          <button class="swatch" type="button" data-color="#ff8a3d" aria-label="Orange" aria-pressed="false" style="background:#ff8a3d"></button>
+          <button class="swatch" type="button" data-mark="1" aria-label="First colour" aria-pressed="true"></button>
+          <button class="swatch" type="button" data-mark="2" aria-label="Second colour" aria-pressed="false"></button>
+          <button class="swatch" type="button" data-mark="3" aria-label="Third colour" aria-pressed="false"></button>
         </span>
         <button class="btn" id="clear" type="button">Clear</button>
       </div>
-      <p class="hint">Drag between squares to draw an arrow; click a square to circle it. Right-click drag works any time. Arrow keys step through the game.</p>
+      <div class="row">
+        <p class="hint">Drag between squares to draw an arrow; click a square to circle it. Right-click drag works any time. Arrow keys step through the game.</p>
+        <span class="spacer"></span>
+        <label class="scheme" for="scheme">Colours
+          <select id="scheme">
+            <option value="broadcast">Broadcast</option>
+            <option value="scoreboard">Scoreboard</option>
+            <option value="track">Track</option>
+            <option value="matchday">Matchday</option>
+          </select>
+        </label>
+      </div>
     </div>
   </div>
 

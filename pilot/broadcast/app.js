@@ -30,14 +30,15 @@
                '<circle cx="26" cy="30" r="5"/><circle cx="44" cy="22" r="5"/><circle cx="56" cy="22" r="5"/><circle cx="74" cy="30" r="5"/>' + BASE },
     k: { body: '<path d="M34 80 Q29 58 36 49 Q42 41 50 43 Q58 41 64 49 Q71 58 66 80 Z"/><rect x="46" y="10" width="8" height="30" rx="2"/><rect x="37" y="18" width="26" height="8" rx="2"/>' + BASE },
   };
-  const ARROW_COLORS = ["#d9f84a", "#c24dff", "#ff8a3d"];
+  const MARKS = [1, 2, 3]; // colour slots; the scheme's --mark-N tokens give the colours
+  const SCHEMES = ["broadcast", "scoreboard", "track", "matchday"];
   const KIND_LABEL = { swing: "Swing", difficulty: "Difficulty", overload: "Overload", conversion: "Conversion" };
 
   // ---------- state ----------
   const state = {
     feed: null, k: 0, playing: false, timer: null, tab: "game",
     layers: { overload: false, control: false, network: false },
-    drawMode: false, color: ARROW_COLORS[0], marks: {}, drag: null, videoUrl: null,
+    drawMode: false, mark: 1, marks: {}, drag: null, videoUrl: null,
   };
 
   // ---------- helpers ----------
@@ -79,11 +80,9 @@
   function buildBoard() {
     const s = svg("svg", { viewBox: "0 0 800 800", role: "img", "aria-label": "Chess board" });
     const defs = svg("defs");
-    ARROW_COLORS.forEach((color, i) => {
+    MARKS.forEach((i) => {
       const m = svg("marker", { id: `ah-${i}`, viewBox: "0 0 10 10", refX: "5", refY: "5", markerWidth: "3", markerHeight: "3", orient: "auto-start-reverse" });
-      const p = svg("path", { d: "M0 0 L10 5 L0 10 z" });
-      p.setAttribute("fill", color);
-      m.appendChild(p);
+      m.appendChild(svg("path", { d: "M0 0 L10 5 L0 10 z", class: `m${i}` }));
       defs.appendChild(m);
     });
     for (const [key, ch] of Object.entries(PIECES)) {
@@ -100,15 +99,13 @@
       squares.appendChild(svg("rect", { x: f * SQ, y: r * SQ, width: SQ, height: SQ, class: (r + f) % 2 ? "sq-d" : "sq-l" }));
     }
     for (let f = 0; f < 8; f++) {
-      const t = svg("text", { x: f * SQ + SQ - 8, y: 792, "text-anchor": "end", class: "coord" });
+      const t = svg("text", { x: f * SQ + SQ - 8, y: 792, "text-anchor": "end", class: `coord ${f % 2 ? "coord-d" : "coord-l"}` });
       t.textContent = String.fromCharCode(97 + f);
-      t.setAttribute("fill", f % 2 ? "#7a73c4" : "#d8d5f2");
       squares.appendChild(t);
     }
     for (let r = 0; r < 8; r++) {
-      const t = svg("text", { x: 6, y: r * SQ + 18, class: "coord" });
+      const t = svg("text", { x: 6, y: r * SQ + 18, class: `coord ${r % 2 ? "coord-l" : "coord-d"}` });
       t.textContent = String(8 - r);
-      t.setAttribute("fill", r % 2 ? "#d8d5f2" : "#7a73c4");
       squares.appendChild(t);
     }
     s.appendChild(squares);
@@ -151,10 +148,10 @@
       const marks = marksHere();
       if (from === to) {
         const i = marks.circles.findIndex((c) => c.sq === from);
-        if (i >= 0) marks.circles.splice(i, 1); else marks.circles.push({ sq: from, color: state.color });
+        if (i >= 0) marks.circles.splice(i, 1); else marks.circles.push({ sq: from, mark: state.mark });
       } else {
         const i = marks.arrows.findIndex((a) => a.from === from && a.to === to);
-        if (i >= 0) marks.arrows.splice(i, 1); else marks.arrows.push({ from, to, color: state.color });
+        if (i >= 0) marks.arrows.splice(i, 1); else marks.arrows.push({ from, to, mark: state.mark });
       }
       renderMarks();
     };
@@ -164,19 +161,18 @@
 
   const marksHere = () => (state.marks[state.k] ||= { arrows: [], circles: [] });
 
-  function arrowEl(from, to, color, opacity = 0.85) {
+  function arrowEl(from, to, mark, opacity = 0.85) {
     const a = sqXY(from), b = sqXY(to);
     const dx = b.cx - a.cx, dy = b.cy - a.cy, len = Math.hypot(dx, dy) || 1;
-    const line = svg("line", { x1: a.cx, y1: a.cy, x2: b.cx - (dx / len) * 30, y2: b.cy - (dy / len) * 30,
-      stroke: color, "stroke-width": 14, "stroke-linecap": "round", opacity, "marker-end": `url(#ah-${ARROW_COLORS.indexOf(color)})` });
-    return line;
+    return svg("line", { x1: a.cx, y1: a.cy, x2: b.cx - (dx / len) * 30, y2: b.cy - (dy / len) * 30, class: `m${mark}`,
+      "stroke-width": 14, "stroke-linecap": "round", opacity, "marker-end": `url(#ah-${mark})` });
   }
 
   function renderPreview() {
     const g = $("#l-preview");
     g.innerHTML = "";
     const d = state.drag;
-    if (d && d.from !== d.to) g.appendChild(arrowEl(d.from, d.to, state.color, 0.45));
+    if (d && d.from !== d.to) g.appendChild(arrowEl(d.from, d.to, state.mark, 0.45));
   }
 
   function renderMarks() {
@@ -186,9 +182,9 @@
     if (!m) return;
     for (const c of m.circles) {
       const p = sqXY(c.sq);
-      g.appendChild(svg("circle", { cx: p.cx, cy: p.cy, r: 44, class: "mark-ring", stroke: c.color }));
+      g.appendChild(svg("circle", { cx: p.cx, cy: p.cy, r: 44, class: `mark-ring m${c.mark}` }));
     }
-    for (const a of m.arrows) g.appendChild(arrowEl(a.from, a.to, a.color));
+    for (const a of m.arrows) g.appendChild(arrowEl(a.from, a.to, a.mark));
   }
 
   function renderBoard(f) {
@@ -257,6 +253,15 @@
     }
   }
 
+  // ---------- colour scheme ----------
+  function setScheme(name) {
+    if (!SCHEMES.includes(name)) name = SCHEMES[0];
+    if (name === SCHEMES[0]) delete document.documentElement.dataset.scheme;
+    else document.documentElement.dataset.scheme = name;
+    $("#scheme").value = name;
+    try { localStorage.setItem("chessviewer.scheme", name); } catch (e) { /* storage unavailable */ }
+  }
+
   // ---------- tabs ----------
   function setTab(tab) {
     state.tab = tab;
@@ -302,7 +307,6 @@
   function buildChart() {
     const frames = state.feed.frames, n = frames.length - 1;
     const s = svg("svg", { viewBox: `0 0 ${CH.w} ${CH.h}`, role: "img", "aria-label": "White's expected points over the game" });
-    s.innerHTML = `<defs><linearGradient id="areagrad" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#d9f84a" stop-opacity=".2"/><stop offset="1" stop-color="#d9f84a" stop-opacity="0"/></linearGradient></defs>`;
     for (const [e, label] of [[1, "White"], [0.75, "75%"], [0.5, "50%"], [0.25, "25%"], [0, "Black"]]) {
       const [, y] = chartXY(0, e);
       s.appendChild(svg("line", { x1: CH.l, x2: CH.w - CH.r, y1: y, y2: y, class: e === 0.5 ? "mid" : "grid" }));
@@ -325,8 +329,8 @@
     s.appendChild(svg("path", { d: d(eng), class: "eng" }));
     s.appendChild(svg("line", { id: "chart-now", y1: CH.t, y2: CH.h - CH.b, class: "now" }));
     const key = svg("g");
-    key.innerHTML = `<rect x="${CH.l + 10}" y="${CH.t + 6}" width="14" height="4" rx="2" fill="#d9f84a"/><text x="${CH.l + 30}" y="${CH.t + 12}">Engine</text>
-      <rect x="${CH.l + 92}" y="${CH.t + 6}" width="14" height="4" rx="2" fill="#c24dff"/><text x="${CH.l + 112}" y="${CH.t + 12}">Human (Maia-3)</text>`;
+    key.innerHTML = `<rect x="${CH.l + 10}" y="${CH.t + 6}" width="14" height="4" rx="1" class="key-eng"/><text x="${CH.l + 30}" y="${CH.t + 12}">Engine</text>
+      <rect x="${CH.l + 92}" y="${CH.t + 6}" width="14" height="4" rx="1" class="key-hum"/><text x="${CH.l + 112}" y="${CH.t + 12}">Human (Maia-3)</text>`;
     s.appendChild(key);
     s.style.cursor = "pointer";
     s.addEventListener("click", (e) => {
@@ -471,7 +475,7 @@
       $("#board").classList.toggle("drawing", state.drawMode);
     });
     document.querySelectorAll(".swatch").forEach((b) => b.addEventListener("click", () => {
-      state.color = b.dataset.color;
+      state.mark = Number(b.dataset.mark);
       document.querySelectorAll(".swatch").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
     }));
     $("#clear").addEventListener("click", () => { delete state.marks[state.k]; renderMarks(); });
@@ -480,6 +484,7 @@
       renderBoard(state.feed.frames[state.k]);
     }));
     document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => setTab(t.dataset.tab)));
+    $("#scheme").addEventListener("change", (e) => setScheme(e.target.value));
     document.addEventListener("keydown", (e) => {
       if (e.target.closest("input, select, textarea")) return;
       if (e.key === "ArrowRight") { stop(); showFrame(state.k + 1); }
@@ -515,6 +520,11 @@
     buildMoves();
     renderVideo();
     wireControls();
+    let scheme = location.hash.slice(1);
+    if (!SCHEMES.includes(scheme)) {
+      try { scheme = localStorage.getItem("chessviewer.scheme") || SCHEMES[0]; } catch (e) { scheme = SCHEMES[0]; }
+    }
+    setScheme(scheme);
     let tab = state.videoUrl ? "video" : "game";
     try { tab = localStorage.getItem("chessviewer.tab") || tab; } catch (e) { /* storage unavailable */ }
     setTab(tab);

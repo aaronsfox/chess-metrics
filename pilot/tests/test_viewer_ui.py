@@ -35,7 +35,7 @@ def test_viewer_interactions():
         # 2. draw mode on: arrow d1-h5 in lime, circle on f7 in purple
         page.click("#draw")
         page.mouse.move(*center("d3")); page.mouse.down(); page.mouse.move(*center("h7"), steps=8); page.mouse.up()
-        page.click(".swatch[data-color='#c24dff']")
+        page.click(".swatch[data-mark='2']")
         page.mouse.click(*center("f7"))
         assert page.locator("#l-marks line").count() == 1, "arrow missing"
         assert page.locator("#l-marks circle").count() == 1, "circle missing"
@@ -71,5 +71,11 @@ def test_viewer_interactions():
         page.click("#tab-game")
         page.locator(".moment").nth(1).click()
         assert page.locator("#mv").inner_text() == "17. g4"
+
+        # 9. colour schemes switch via the picker and keep drawn marks
+        page.select_option("#scheme", "matchday")
+        assert page.evaluate("document.documentElement.dataset.scheme") == "matchday"
+        page.select_option("#scheme", "broadcast")
+        assert page.evaluate("document.documentElement.dataset.scheme") is None
         b.close()
     assert not errors, errors
