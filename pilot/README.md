@@ -13,7 +13,8 @@ Metrics: Build Plan*. Everything is expressed in expected points
 | Engine pass: MultiPV over all legal moves (or a candidate set), cp + WDL, fixed depth/nodes | `engine.py` | Done |
 | Cache keyed by position + engine version + limit | `engine.AnalysisCache` (SQLite) | Done |
 | Points function, incl. Armageddon / must-win | `points.py` | Done |
-| Human move model interface | `human.py` | Interface + placeholder (`EngineSoftmaxModel`); Maia-2 adapter next |
+| Human move model | `human.py`, `maia.py` | Maia-3 adapter (full move distribution, human WDL, think-time head); clock correction hook unfitted |
+| Human model baseline evaluation (plan step 1) | `scripts/eval_human_model.py` | Done on 25 elite games; temperature probe exploratory |
 | Good-enough set, find rate, P(blunder), expected loss | `difficulty.py` | Done (τ = 0.04, β = 0.15, untuned) |
 | Only-move chains | `difficulty.only_move_chain` | Done |
 | EPA, swing moments, seized / gifted / missed ledger | `epa.py` | Done; move vs clock EPA split awaits HWP |
@@ -28,19 +29,23 @@ Metrics: Build Plan*. Everything is expressed in expected points
 | Feature store, live service | — | Not started |
 | Validation framework | — | Not started |
 
-Numbers from `EngineSoftmaxModel` are a stand-in so the pipeline runs end to
-end. They are **not** fit for air until the real human model is calibrated.
+`EngineSoftmaxModel` remains as a placeholder baseline (`--human-model softmax`).
+No difficulty number is fit for air until the human model is calibrated on a
+held-out elite set.
 
 ## Usage
 
 ```bash
 cd pilot
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
+.venv/bin/pip install -e ".[maia]"                    # optional: Maia-3 (torch + maia3, AGPL-3.0)
 .venv/bin/pytest                                      # engine tests need Stockfish (STOCKFISH=/path)
+MAIA3_DOWNLOAD=1 .venv/bin/pytest tests/test_maia.py  # real-weight tests (downloads maia3-5m, 21 MB)
 
 chessmetrics records games.pgn > moves.csv            # per-move normalised records
 chessmetrics structure "<FEN>"                         # structural snapshot as JSON
 chessmetrics analyse games.pgn --depth 12              # engine + difficulty + EPA report, one JSON line per game
+                                                       # (--human-model maia3-5m by default, or softmax)
 ```
 
 ## Test data
@@ -69,7 +74,33 @@ often appear a move or two late (detected from the clock data).
   search, or smoothing, before EPA is shown per move.
 - **The placeholder human model is far too sharp for 2700s.** P(blunder) is ~0
   and find rates are near 1 almost everywhere, so expected accuracy ≈ 0.94–0.99.
-  This is expected of the softmax stand-in and is the main reason to bring in Maia-2.
+
+### Maia-3 (maia3-5m) on the 25 elite games
+
+- **Move prediction transfers well to elite OTB classical.** After ply 16
+  (1,992 positions): top-1 match 52.6%, mean log-likelihood −1.44 vs −3.26 for
+  uniform. The paper reports 57.1% top-1 on (online) Lichess games.
+- **Overconfident on its favourite moves.** Predicted 0.65–0.85 is played only
+  0.55–0.77 of the time: elites deviate from the "natural" move more than Maia
+  expects. Low-probability bins are well calibrated.
+- **Shifting ratings up does not fix it** (+200: LL −1.42, +800: −1.93).
+  **Temperature ~1.1 does most of it** (LL −1.43, bins mostly within 1–4 pts).
+  In-sample on 25 games only, so not applied by default: fit on a held-out
+  event before fixing a value.
+- **Difficulty now varies meaningfully.** In Rapport–Abdusattorov, before
+  17.g4 (the decisive swing) Maia gives 2700s a 9% find rate and 91%
+  P(blunder). But some winning positions read as near-impossible (25…Bf5: 1%
+  find rate, yet found), and accuracy over expected is +0.40 for Black: both
+  consistent with the overconfidence above, plus depth-12 noise in the good set.
+
+### Maia-3 notes
+
+- Released weights take no clock input (`include_time_info=False`); clock
+  effects need the correction layer (`Maia3Model(clock_temperature=...)`).
+- Trained on Lichess online games, Jan 2023 – Jul 2025.
+- Code and (per the model card) weights are **AGPL-3.0**. Running Maia-3
+  in-process inside a network-facing broadcast service likely brings AGPL
+  obligations to the combined work; check before production.
 
 ## Conventions
 
