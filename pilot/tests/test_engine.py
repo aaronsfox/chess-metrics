@@ -110,3 +110,27 @@ def test_wdl_model_is_flatter_and_keyed_separately(tmp_path):
         e_sf = sf.analyse(board).best.expected(chess.WHITE)
         e_li = li.analyse(board).best.expected(chess.WHITE)
     assert e_li < e_sf  # Stockfish's own WDL is far more confident
+
+
+def test_broadcast_feed_contract(analyzer):
+    pytest.importorskip("torch")
+    pytest.importorskip("maia3")
+    import json
+
+    from chessmetrics.broadcast import game_feed
+    from chessmetrics.maia import Maia3Model
+
+    with open(FIXTURES / "scholars.pgn") as f:
+        game = chess.pgn.read_game(f)
+    feed = game_feed(game, analyzer, Maia3Model(random_init=True), scan_limit=SearchLimit(depth=6))
+    json.dumps(feed)  # JSON-ready
+    frames = feed["frames"]
+    assert len(frames) == 8 and frames[0]["ply"] == 0 and "lastMove" not in frames[0]
+    assert frames[-1]["lastMove"]["san"] == "Qxf7#" and "decision" not in frames[-1]
+    assert frames[-1]["engine"]["wdl"] == [1.0, 0.0, 0.0]
+    for fr in frames[:-1]:
+        assert {"engine", "human", "decision", "structure", "callouts", "clocks"} <= set(fr)
+        assert abs(sum(fr["human"]["wdlSmooth"]) - 1) < 1e-3
+        assert len(fr["callouts"]) <= 1
+    assert frames[6]["epa"]["value"] < -0.3  # 3...Nf6 allows mate
+    assert frames[6]["clocks"]["black"] == 170

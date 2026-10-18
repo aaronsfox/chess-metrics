@@ -8,6 +8,7 @@ import json
 import sys
 
 import chess
+import chess.pgn
 
 from .engine import DEFAULT_STOCKFISH, WDL_MODELS, AnalysisCache, EngineAnalyzer, SearchLimit
 from .human import EngineSoftmaxModel
@@ -43,6 +44,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--wdl-model", default="engine", choices=WDL_MODELS,
                    help='"engine" (Stockfish WDL, steep) or a python-chess model, e.g. "lichess" (flatter, no draws)')
 
+    p = sub.add_parser("feed", help="broadcast feed (one JSON frame per position) for one game")
+    p.add_argument("pgn")
+    p.add_argument("--game", type=int, default=0, help="0-based index of the game in the PGN")
+    p.add_argument("--engine", default=DEFAULT_STOCKFISH)
+    p.add_argument("--depth", type=int, default=18)
+    p.add_argument("--threads", type=int, default=min(4, os.cpu_count() or 1))
+    p.add_argument("--cache", default="analysis_cache.sqlite")
+    p.add_argument("--human-model", default="maia3-5m")
+    p.add_argument("-o", "--out", required=True)
+
     args = parser.parse_args(argv)
     if args.cmd == "records":
         n = write_csv(pgn_to_records(args.pgn), sys.stdout)
@@ -67,6 +78,20 @@ def main(argv: list[str] | None = None) -> int:
                                       scan_limit=scan, min_prob=args.min_prob)
                 report["human_model"] = getattr(model, "model_id", args.human_model)
                 print(json.dumps(report))
+    elif args.cmd == "feed":
+        from .broadcast import game_feed
+        from .maia import Maia3Model
+
+        with open(args.pgn) as f:
+            for _ in range(args.game):
+                chess.pgn.skip_game(f)
+            game = chess.pgn.read_game(f)
+        with EngineAnalyzer(args.engine, SearchLimit(depth=args.depth), AnalysisCache(args.cache),
+                            threads=args.threads, hash_mb=256) as analyzer:
+            feed = game_feed(game, analyzer, Maia3Model(args.human_model))
+        with open(args.out, "w") as f:
+            json.dump(feed, f, separators=(",", ":"))
+        print(f"{len(feed['frames'])} frames -> {args.out}", file=sys.stderr)
     return 0
 
 

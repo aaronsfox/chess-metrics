@@ -23,7 +23,8 @@ Metrics: Build Plan*. Everything is expressed in expected points
 | Square control, space, outposts, key squares | `structure/control.py` | Done |
 | En prise, loose pieces, overload (defends / mate-in-1 / blockade duties) | `structure/tension.py` | Done |
 | King safety with breakdown | `structure/king_safety.py` | Done |
-| Connectivity network | — | Not started (lowest priority in plan) |
+| Connectivity network | `broadcast.py` (defence edges) | Display layer only; no metrics yet |
+| Broadcast graphics | `broadcast.py`, `broadcast/` | Prototype overlay replaying a game feed |
 | Contextual piece value | — | Not started (needs engine; easy next add) |
 | Human-aware win probability (HWP) | — | Not started: needs Lichess training data |
 | Feature store, live service | — | Not started |
@@ -145,6 +146,29 @@ engine-only HWP baseline). The default stays `engine` until that decision is mad
 - Code and (per the model card) weights are **AGPL-3.0**. Running Maia-3
   in-process inside a network-facing broadcast service likely brings AGPL
   obligations to the combined work; check before production.
+
+## Broadcast overlay prototype (`broadcast/`)
+
+HTML/SVG broadcast graphics driven by a per-position JSON feed: score bug with
+clocks, engine and human (Maia-3) outcome bars, an in-house SVG board with
+metric layers (last move, engine best vs human favourite arrows, overloaded
+pieces and their duties, square control, defence network), an analysis panel
+(Game / Decision / Board) and event callouts (swing, difficulty, overload,
+conversion) scheduled one at a time with per-kind cooldowns.
+
+```bash
+chessmetrics feed tests/fixtures/broadcast/olympiad2026_open_2700.pgn --game 2 -o broadcast/feed.json
+python -c "import pathlib as p; p.Path('broadcast/feed.js').write_text('window.FEED = ' + p.Path('broadcast/feed.json').read_text() + ';\n')"
+# open broadcast/index.html; in OBS/vMix add it as a browser source at 1920x1080 and use "Clean feed"
+# (or append #clean) to hide the operator controls and the background
+```
+
+The feed (`chessmetrics.broadcast.game_feed`) is the data contract between the
+metrics and the graphics; a live service would push the same frames over a
+WebSocket and call `ChessOverlay.showFrame`. Known prototype limits: Maia's
+outcome view zigzags with the side to move (displayed as a two-ply average),
+swing callouts inherit the Stockfish WDL-scale issue above, and overload
+detection is untuned.
 
 ## Conventions
 

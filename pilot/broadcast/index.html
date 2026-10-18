@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- page:start -->
+<title>Chess Broadcast Overlay</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Figtree:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="styles.css">
+<!-- head:end -->
+</head>
+<body>
+<!-- body:start -->
+<div class="stage-wrap"><div class="stage" id="stage"></div></div>
+
+<div class="controls" aria-label="Operator controls">
+  <div class="row">
+    <button id="first" type="button" aria-label="First position">⏮</button>
+    <button id="prev" type="button" aria-label="Previous move">◀</button>
+    <button id="play" type="button" class="primary">Play</button>
+    <button id="next" type="button" aria-label="Next move">▶</button>
+    <button id="last" type="button" aria-label="Last position">⏭</button>
+    <button id="next-callout" type="button">Next callout</button>
+    <span class="moveinfo" id="moveinfo"></span>
+    <span class="spacer"></span>
+    <label for="speed">Speed
+      <select id="speed">
+        <option value="4000">Slow</option>
+        <option value="2600" selected>Normal</option>
+        <option value="1200">Fast</option>
+      </select>
+    </label>
+    <button id="clean" type="button">Clean feed</button>
+  </div>
+  <div class="scrub" id="scrub" role="slider" aria-label="Game timeline" aria-valuemin="0"></div>
+  <div class="row">
+    <label><input type="checkbox" id="layer-last" data-layer="lastMove">Last move</label>
+    <label><input type="checkbox" id="layer-best" data-layer="best">Engine best</label>
+    <label><input type="checkbox" id="layer-human" data-layer="human">Human favourite</label>
+    <label><input type="checkbox" id="layer-overload" data-layer="overload">Overloaded pieces</label>
+    <label><input type="checkbox" id="layer-control" data-layer="control">Square control</label>
+    <label><input type="checkbox" id="layer-network" data-layer="network">Defence network</label>
+    <label><input type="checkbox" id="auto-tab" checked>Panel follows callouts</label>
+  </div>
+  <p class="note">Operator view: the 16:9 frame above is the broadcast output; these controls are not. Replay of Rapport–Abdusattorov, Chess Olympiad 2026, from the chessmetrics pipeline (Stockfish 16 at depth 18, Maia-3 5M). Timeline ticks mark callouts: orange swing, lime difficulty, white overload, purple conversion. Arrow keys step, space plays. <b>Prototype:</b> the human model is not yet calibrated for elite play, the engine's win/draw/loss scale exaggerates some swings, and overload detection is untuned.</p>
+</div>
+
+<script src="feed.js"></script>
+<script src="app.js"></script>
+<!-- body:end -->
+</body>
+</html>
