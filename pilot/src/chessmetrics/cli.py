@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import sys
 
 import chess
 
-from .engine import DEFAULT_STOCKFISH, AnalysisCache, EngineAnalyzer, SearchLimit
+from .engine import DEFAULT_STOCKFISH, WDL_MODELS, AnalysisCache, EngineAnalyzer, SearchLimit
 from .human import EngineSoftmaxModel
 from .pgn import pgn_to_records, read_games, write_csv
 from .structure import snapshot
@@ -27,7 +28,8 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("analyse", help="engine + difficulty + EPA report for each game in a PGN")
     p.add_argument("pgn")
     p.add_argument("--engine", default=DEFAULT_STOCKFISH)
-    p.add_argument("--depth", type=int, default=12)
+    p.add_argument("--depth", type=int, default=18,
+                   help="deep search depth (18: see README depth study)")
     p.add_argument("--cache", default="analysis_cache.sqlite")
     p.add_argument("--skip-plies", type=int, default=0)
     p.add_argument("--human-model", default="maia3-5m",
@@ -37,7 +39,9 @@ def main(argv: list[str] | None = None) -> int:
                    help="depth for moves outside the human model's candidates (tiered analysis)")
     p.add_argument("--min-prob", type=float, default=0.01, help="human probability that makes a move a candidate")
     p.add_argument("--full", action="store_true", help="search every legal move at --depth (slow)")
-    p.add_argument("--threads", type=int, default=1)
+    p.add_argument("--threads", type=int, default=min(4, os.cpu_count() or 1))
+    p.add_argument("--wdl-model", default="engine", choices=WDL_MODELS,
+                   help='"engine" (Stockfish WDL, steep) or a python-chess model, e.g. "lichess" (flatter, no draws)')
 
     args = parser.parse_args(argv)
     if args.cmd == "records":
@@ -57,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         cache = AnalysisCache(args.cache)
         scan = None if args.full else SearchLimit(depth=args.scan_depth)
         with EngineAnalyzer(args.engine, SearchLimit(depth=args.depth), cache, threads=args.threads,
-                            hash_mb=256) as analyzer, open(args.pgn) as f:
+                            hash_mb=256, wdl_model=args.wdl_model) as analyzer, open(args.pgn) as f:
             for game in read_games(f):
                 report = analyse_game(game, analyzer, model, skip_plies=args.skip_plies,
                                       scan_limit=scan, min_prob=args.min_prob)

@@ -67,11 +67,9 @@ often appear a move or two late (detected from the clock data).
 
 ## Early findings on elite games
 
-- **EPA is noisy at depth 12.** In Rapport–Abdusattorov (0-1) the swing moments
-  look right (17.g4 is the biggest, −0.32), but per-move search inconsistency
-  shows up as spurious EPA on moves that hold, e.g. the winner "concedes" 0.81
-  points across the game while being "gifted" 1.28. Needs deeper or node-based
-  search, or smoothing, before EPA is shown per move.
+- **EPA was noisy at depth 12** (the winner "conceded" 0.81 points on moves that
+  held). Addressed below: tiered search at depth 18, single-search EPA, and the
+  WDL scale finding.
 - **The placeholder human model is far too sharp for 2700s.** P(blunder) is ~0
   and find rates are near 1 almost everywhere, so expected accuracy ≈ 0.94–0.99.
 
@@ -92,6 +90,52 @@ often appear a move or two late (detected from the clock data).
   P(blunder). But some winning positions read as near-impossible (25…Bf5: 1%
   find rate, yet found), and accuracy over expected is +0.40 for Black: both
   consistent with the overconfidence above, plus depth-12 noise in the good set.
+
+### Depth, tiered search and EPA noise
+
+All-legal-move MultiPV costs 52–84 s per position at depth 20 (4 threads), so
+`analyse` now runs a **tiered** search: Maia candidates (p ≥ 1%), the played
+move and the top 5 of a depth-10 scan go deep; every other move keeps its scan
+value, so find rate and P(blunder) still cover all legal moves. EPA is now
+scored **within one search** (played vs best move); disagreement between
+consecutive searches is reported separately as `drift`, and the ledger still
+telescopes to E(final) − E(start).
+
+`scripts/depth_study.py` on Rapport–Abdusattorov (plies ≥ 16, depth 20 as reference):
+
+| depth | s/position | drift | played in-G verdict = d20 | G Jaccard vs d20 | P(blunder) MAD vs d20 |
+| --- | --- | --- | --- | --- | --- |
+| 12 | 0.9 | 0.026 | 0.89 | 0.80 | 0.147 |
+| 14 | 1.2 | 0.029 | 0.87 | 0.86 | 0.044 |
+| 16 | 2.4 | 0.023 | 0.96 | 0.88 | 0.059 |
+| 18 | 4.5 | 0.014 | 0.98 | 0.92 | 0.055 |
+| 20 | 8.6 | 0.015 | – | – | – |
+
+**Default is now depth 18** (tiered, 4 threads): drift halves and good-set
+verdicts agree 98% with depth 20, at half its cost. One game only; the
+reference is itself a finite-depth search.
+
+### WDL scale: the bigger source of noise
+
+Depth fixed the verdicts but not the size of the swings. Stockfish's own WDL is
+calibrated on engine self-play and is extremely steep: in the same endgame,
++1.48 → 94% win, +0.96 → 48%, +0.64 → 13%. Half a pawn moves E by ~0.45, so
+small eval differences become large EPA (the winner's harmless 24…Nxg4 and
+25…Bf5 scored −0.23 and −0.27).
+
+Re-scoring the same depth-18 evals with python-chess's `lichess` curve
+(`--wdl-model lichess`):
+
+| scale | Σ\|EPA\| (plies ≥ 16) | moves with EPA < −0.10 | top swings |
+| --- | --- | --- | --- |
+| Stockfish WDL | 2.13 | 9 | Qxd5 −0.43, Bf5 −0.27, Nxg4 −0.23, Nf4 −0.21, g4 −0.16 |
+| Lichess curve | 0.79 | 1 | Qxd5 −0.18, g4 −0.06, Nf4 −0.06 |
+
+The Lichess curve picks out White's real blunder (26.Qxd5, −2.78) and 17.g4,
+but it is fitted on online play and has **no draws**, so must-win and
+Armageddon scoring are meaningless with it, and τ/β mean different things on
+it. The principled fix is a cp→WDL curve fitted on elite games (the
+engine-only HWP baseline). The default stays `engine` until that decision is made.
 
 ### Maia-3 notes
 

@@ -99,3 +99,14 @@ def test_game_report_tiered_telescopes(analyzer):
         s = report["summary"][color]
         start = report["moves"][0]["e_before"] if color == "white" else 1 - report["moves"][0]["e_before"]
         assert s["net"] == pytest.approx(final - start, abs=0.02)  # draw value 0.5: E_black ~ 1 - E_white
+
+
+def test_wdl_model_is_flatter_and_keyed_separately(tmp_path):
+    cache = AnalysisCache(tmp_path / "w.sqlite")
+    board = chess.Board("6k1/5ppp/8/8/8/8/2N2PPP/6K1 w - - 0 1")  # a knight up
+    with EngineAnalyzer(STOCKFISH, SearchLimit(depth=8), cache) as sf, \
+            EngineAnalyzer(STOCKFISH, SearchLimit(depth=8), cache, wdl_model="lichess") as li:
+        assert sf.engine_id != li.engine_id
+        e_sf = sf.analyse(board).best.expected(chess.WHITE)
+        e_li = li.analyse(board).best.expected(chess.WHITE)
+    assert e_li < e_sf  # Stockfish's own WDL is far more confident

@@ -23,12 +23,19 @@ DEFAULT_STOCKFISH = "/usr/games/stockfish"
 # Used only when the engine does not report WDL itself.
 FALLBACK_WDL_MODEL = "sf16"
 
+# How centipawns become win/draw/loss. "engine" uses the engine's own WDL
+# (Stockfish: calibrated on engine self-play, so very steep: +1.5 is ~94% won).
+# Any python-chess model name ("lichess", "sf16", ...) recomputes it from the
+# score instead; "lichess" is much flatter but has no draws, so must-win and
+# Armageddon scoring are meaningless with it. See README "WDL scale".
+WDL_MODELS = ("engine", "lichess", "sf16", "sf15.1", "sf15", "sf14", "sf12")
+
 
 @dataclass(frozen=True)
 class SearchLimit:
     """A fixed search budget, so evaluations are comparable across positions."""
 
-    depth: int | None = 14
+    depth: int | None = 18  # see README depth study
     nodes: int | None = None
 
     def to_engine(self) -> chess.engine.Limit:
@@ -144,15 +151,21 @@ class EngineAnalyzer:
         cache: AnalysisCache | None = None,
         threads: int = 1,
         hash_mb: int = 64,
+        wdl_model: str = "engine",
     ) -> None:
+        if wdl_model not in WDL_MODELS:
+            raise ValueError(f"wdl_model must be one of {WDL_MODELS}")
         self.limit = limit
+        self.wdl_model = wdl_model
         self.cache = cache or AnalysisCache()
         self._engine = chess.engine.SimpleEngine.popen_uci(path)
         options = {"Threads": threads, "Hash": hash_mb}
         if "UCI_ShowWDL" in self._engine.options:
             options["UCI_ShowWDL"] = True
         self._engine.configure(options)
-        self.engine_id = self._engine.id.get("name", Path(path).name)
+        name = self._engine.id.get("name", Path(path).name)
+        # the WDL model changes every stored number, so it is part of the identity
+        self.engine_id = name if wdl_model == "engine" else f"{name} wdl={wdl_model}"
 
     def __enter__(self) -> EngineAnalyzer:
         return self
@@ -225,11 +238,12 @@ class EngineAnalyzer:
             self.cache.put(pos, self.engine_id, self.limit.key(), "best", cached)
         return cached[0].wdl
 
-    @staticmethod
-    def _to_move_eval(board: chess.Board, info: chess.engine.InfoDict) -> MoveEval:
+    def _to_move_eval(self, board: chess.Board, info: chess.engine.InfoDict) -> MoveEval:
         score = info["score"].pov(board.turn)
         wdl_info = info.get("wdl")
-        if wdl_info is not None:
+        if self.wdl_model != "engine":
+            w = score.wdl(model=self.wdl_model, ply=board.ply())
+        elif wdl_info is not None:
             w = wdl_info.pov(board.turn)
         else:
             w = score.wdl(model=FALLBACK_WDL_MODEL, ply=board.ply())
